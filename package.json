@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "fetch-data": "uv run python scripts/fetch_datasets.py"
+    "fetch-data": "uv run python scripts/fetch_datasets.py",
+    "download-models": "uv run python scripts/download_models.py",
+    "benchmark": "uv run python scripts/benchmark.py"
   },
   "engines": {
     "node": ">=20"

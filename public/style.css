@@ -8,9 +8,13 @@
   --text-secondary: #52514e;
   --text-muted: #77766f;
   --actual: #2a78d6;
-  --forecast: #eb6834;
-  --band80: rgb(235 104 52 / 0.28);
-  --band98: rgb(235 104 52 / 0.12);
+  /* One fixed color per model size; 209M (the default) keeps the original forecast orange. */
+  --model-209m: #eb6834;
+  --model-123m: #1baf7a;
+  --model-28m: #eda100;
+  --model-5m: #e87ba4;
+  --band80-alpha: 0.28;
+  --band98-alpha: 0.12;
   --baseline: #77766f;
   --context-shade: rgb(11 11 11 / 0.05);
   --holdout-shade: rgb(42 120 214 / 0.06);
@@ -27,9 +31,12 @@
     --text-secondary: #c3c2b7;
     --text-muted: #8f8e86;
     --actual: #3987e5;
-    --forecast: #d95926;
-    --band80: rgb(217 89 38 / 0.3);
-    --band98: rgb(217 89 38 / 0.13);
+    --model-209m: #d95926;
+    --model-123m: #199e70;
+    --model-28m: #c98500;
+    --model-5m: #d55181;
+    --band80-alpha: 0.3;
+    --band98-alpha: 0.13;
     --baseline: #8f8e86;
     --context-shade: rgb(0 0 0 / 0.28);
     --holdout-shade: rgb(57 135 229 / 0.08);
@@ -152,7 +159,7 @@ button:disabled {
 }
 .cutoff input {
   width: 100%;
-  accent-color: var(--forecast);
+  accent-color: var(--model-209m);
 }
 #cutoffLabel {
   min-width: 200px;
@@ -202,21 +209,11 @@ button:disabled {
   height: 10px;
   border-radius: 2px;
 }
-.key.actual {
-  border-color: var(--actual);
+.legend-items {
+  display: contents;
 }
-.key.forecast {
-  border-color: var(--forecast);
-}
-.key.baseline {
+.key.dashed {
   border-top-style: dashed;
-  border-color: var(--baseline);
-}
-.key.band80 {
-  background: var(--band80);
-}
-.key.band98 {
-  background: var(--band98);
 }
 .hint {
   font-size: 12px;
@@ -283,4 +280,24 @@ button:disabled {
 /* uPlot text follows the theme */
 .u-axis {
   color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .viz-root {
+    padding: 14px 12px 32px;
+  }
+  .cutoff {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  #cutoffLabel {
+    min-width: 0;
+    text-align: left;
+  }
+  .results {
+    overflow-x: auto;
+  }
+  .results table {
+    min-width: 0;
+  }
 }

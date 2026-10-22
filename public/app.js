@@ -10,6 +10,7 @@ const el = {
   maxContext: $("maxContext"),
   period: $("period"),
   auto: $("auto"),
+  compare: $("compare"),
   showBaseline: $("showBaseline"),
   run: $("run"),
   cutoff: $("cutoff"),
@@ -17,21 +18,25 @@ const el = {
   chart: $("chart"),
   chartCard: document.querySelector(".chart-card"),
   tooltip: $("tooltip"),
-  baselineKey: $("baselineKey"),
+  legend: $("legendItems"),
   zoomForecast: $("zoomForecast"),
   zoomAll: $("zoomAll"),
+  metricsHead: document.querySelector("#metrics thead tr"),
   metrics: document.querySelector("#metrics tbody"),
   timing: $("timing"),
   download: $("download"),
 };
 
-// Series order in the uPlot data array. Bands first so the actual line draws on top.
-const S = { x: 0, q99: 1, q01: 2, q90: 3, q10: 4, median: 5, baseline: 6, actual: 7 };
+// Series order in the uPlot data array. Bands first so the actual line draws on top. The selected model is drawn
+// as `median` with its bands; in compare mode the other models' medians follow at cmp + their index in state.models.
+const S = { x: 0, q99: 1, q01: 2, q90: 3, q10: 4, median: 5, baseline: 6, cmp: 7, actual: null };
 
 const state = {
   datasets: [],
+  models: [], // Hub ids, smallest first
   series: null, // { id, name, values, timestamps, period, horizon }
-  forecast: null, // last worker response, plus { cutoff, horizon, contextStart }
+  forecast: null, // selected model's last worker response, plus { model, cutoff, horizon, contextStart }
+  results: null, // compare mode: { [model]: response } from the same request as forecast
   plot: null,
   seq: 0,
 };
@@ -39,6 +44,13 @@ const state = {
 // --- helpers -----------------------------------------------------------------
 
 const cssVar = (name) => getComputedStyle(document.querySelector(".viz-root")).getPropertyValue(name).trim();
+const shortName = (model) => model.replace("mistralai/Timestral-", "");
+const modelColor = (model) => cssVar(`--model-${shortName(model).toLowerCase()}`);
+const withAlpha = (hex, alpha) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgb(${n >> 16} ${(n >> 8) & 255} ${n & 255} / ${alpha})`;
+};
+const comparing = () => el.compare.checked && state.results != null;
 const intOf = (input, fallback) => (Number.isFinite(parseInt(input.value, 10)) ? parseInt(input.value, 10) : fallback);
 const fmt = (v, digits = 3) => {
   if (v == null || !Number.isFinite(v)) return "–";
@@ -88,7 +100,8 @@ function buildData() {
   const end = f ? Math.max(n, f.cutoff + f.horizon) : n;
   const x = Array.from({ length: end }, (_, i) => i);
   const empty = () => new Array(end).fill(null);
-  const data = [x, empty(), empty(), empty(), empty(), empty(), empty(), empty()];
+  const data = Array.from({ length: S.actual + 1 }, empty);
+  data[S.x] = x;
   for (let i = 0; i < n; i++) data[S.actual][i] = s.values[i];
   if (f) {
     const li = f.quantile_levels;
@@ -102,6 +115,14 @@ function buildData() {
       for (const k of ["q01", "q99", "q10", "q90"]) data[S[k]][i] = q[col[k]];
       data[S.median][i] = f.median[h];
       data[S.baseline][i] = f.baseline[h];
+    }
+    if (comparing()) {
+      state.models.forEach((m, k) => {
+        const r = state.results[m];
+        if (m === f.model || !r) return;
+        if (anchor != null) data[S.cmp + k][f.cutoff - 1] = anchor;
+        for (let h = 0; h < f.horizon; h++) data[S.cmp + k][f.cutoff + h] = r.median[h];
+      });
     }
   }
   return data;
@@ -156,10 +177,6 @@ function updateTooltip(u) {
     return;
   }
   const d = u.data;
-  const rows = [
-    ["--actual", "Actual", d[S.actual][idx]],
-    ["--forecast", "Median", d[S.median][idx]],
-  ];
   const lo = d[S.q10][idx];
   const hi = d[S.q90][idx];
   const hasForecast = state.forecast && idx >= state.forecast.cutoff;
@@ -169,11 +186,12 @@ function updateTooltip(u) {
   when.textContent = timeLabel(idx);
   tip.append(when);
   const addRow = (color, label, value, dashed = false) => {
+    if (color.startsWith("--")) color = cssVar(color);
     const row = document.createElement("div");
     row.className = "row";
     const key = document.createElement("i");
     key.className = "key line";
-    key.style.borderColor = cssVar(color);
+    key.style.borderColor = color;
     if (dashed) key.style.borderTopStyle = "dashed";
     const strong = document.createElement("strong");
     strong.textContent = value;
@@ -182,8 +200,16 @@ function updateTooltip(u) {
     row.append(key, strong, name);
     tip.append(row);
   };
-  for (const [color, label, v] of rows) if (v != null && (label === "Actual" || hasForecast)) addRow(color, label, fmt(v));
-  if (hasForecast && lo != null) addRow("--band80", "10–90%", `${fmt(lo)} – ${fmt(hi)}`);
+  if (d[S.actual][idx] != null) addRow("--actual", "Actual", fmt(d[S.actual][idx]));
+  if (hasForecast) {
+    const f = state.forecast;
+    addRow(modelColor(f.model), `${shortName(f.model)} median`, fmt(d[S.median][idx]));
+    if (lo != null) addRow(withAlpha(modelColor(f.model), 0.5), `${shortName(f.model)} 10–90%`, `${fmt(lo)} – ${fmt(hi)}`);
+    state.models.forEach((m, k) => {
+      const v = d[S.cmp + k][idx];
+      if (v != null) addRow(modelColor(m), `${shortName(m)} median`, fmt(v));
+    });
+  }
   if (hasForecast && el.showBaseline.checked && d[S.baseline][idx] != null) {
     addRow("--baseline", "Seasonal naive", fmt(d[S.baseline][idx]), true);
   }
@@ -198,7 +224,10 @@ function updateTooltip(u) {
 }
 
 function makePlot() {
+  const zoom = state.plot && state.plot.data[0].length === buildData()[0].length ? { ...state.plot.scales.x } : null;
   state.plot?.destroy();
+  const selected = state.forecast?.model ?? el.model.value;
+  const color = modelColor(selected);
   const transparent = "rgba(0,0,0,0)";
   const quiet = { stroke: transparent, points: { show: false } };
   const axis = {
@@ -219,7 +248,7 @@ function makePlot() {
       { label: "q01", ...quiet },
       { label: "q90", ...quiet },
       { label: "q10", ...quiet },
-      { label: "Median", stroke: cssVar("--forecast"), width: 2, points: { show: false } },
+      { label: "Median", stroke: color, width: 2, points: { show: false } },
       {
         label: "Seasonal naive",
         stroke: cssVar("--baseline"),
@@ -228,11 +257,12 @@ function makePlot() {
         points: { show: false },
         show: el.showBaseline.checked,
       },
+      ...state.models.map((m) => ({ label: shortName(m), stroke: modelColor(m), width: 1.5, points: { show: false } })),
       { label: "Actual", stroke: cssVar("--actual"), width: 1.5, points: { show: false } },
     ],
     bands: [
-      { series: [S.q99, S.q01], fill: cssVar("--band98") },
-      { series: [S.q90, S.q10], fill: cssVar("--band80") },
+      { series: [S.q99, S.q01], fill: withAlpha(color, cssVar("--band98-alpha")) },
+      { series: [S.q90, S.q10], fill: withAlpha(color, cssVar("--band80-alpha")) },
     ],
     axes: [
       { ...axis, space: 100, values: (u, splits) => splits.map(timeLabel) },
@@ -245,7 +275,33 @@ function makePlot() {
     },
   };
   state.plot = new uPlot(opts, buildData(), el.chart);
+  if (zoom?.min != null) state.plot.setScale("x", { min: zoom.min, max: zoom.max });
   attachClickToSetCutoff(state.plot);
+  renderLegend();
+}
+
+function renderLegend() {
+  const selected = state.forecast?.model ?? el.model.value;
+  const color = modelColor(selected);
+  const items = [
+    ["line", cssVar("--actual"), "Actual"],
+    ["line", color, `${shortName(selected)} median`],
+    ["rect", withAlpha(color, cssVar("--band80-alpha")), "10–90% interval"],
+    ["rect", withAlpha(color, cssVar("--band98-alpha")), "1–99% interval"],
+  ];
+  if (comparing()) for (const m of [...state.models].reverse()) if (m !== selected) items.push(["line", modelColor(m), `${shortName(m)} median`]);
+  if (el.showBaseline.checked) items.push(["dashed", cssVar("--baseline"), "Seasonal naive"]);
+  el.legend.replaceChildren(
+    ...items.map(([kind, c, label]) => {
+      const span = document.createElement("span");
+      const key = document.createElement("i");
+      key.className = kind === "rect" ? "key rect" : `key line${kind === "dashed" ? " dashed" : ""}`;
+      if (kind === "rect") key.style.background = c;
+      else key.style.borderColor = c;
+      span.append(key, label);
+      return span;
+    }),
+  );
 }
 
 // A plain click (no drag) on the plot moves the forecast origin. Double-click still resets zoom.
@@ -296,13 +352,15 @@ async function runForecast() {
   const seq = ++state.seq;
   el.chartCard.classList.add("loading");
   el.run.disabled = true;
-  setStatus(`Forecasting ${p.horizon} steps from ${context.length} points…`);
-  try {
+  const selected = el.model.value;
+  const models = el.compare.checked ? state.models : [selected];
+  setStatus(`Forecasting ${p.horizon} steps from ${context.length} points with ${models.map(shortName).join(", ")}…`);
+  const request = async (model) => {
     const res = await fetch("/api/forecast", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: el.model.value,
+        model,
         context,
         prediction_length: p.horizon,
         actual: actual.length ? actual : null,
@@ -310,12 +368,20 @@ async function runForecast() {
       }),
     });
     const body = await res.json();
-    if (seq !== state.seq) return; // a newer request superseded this one
     if (!res.ok || body.ok === false) throw new Error(body.error ?? res.statusText);
-    state.forecast = { ...body, ...p };
-    refreshPlot();
+    return { ...body, ...p, model };
+  };
+  try {
+    const responses = await Promise.all(models.map(request));
+    if (seq !== state.seq) return; // a newer request superseded this one
+    const byModel = Object.fromEntries(responses.map((r) => [r.model, r]));
+    const recolor = state.forecast?.model !== selected || (state.results != null) !== el.compare.checked;
+    state.results = el.compare.checked ? byModel : null;
+    state.forecast = byModel[selected];
+    recolor ? makePlot() : refreshPlot();
     renderMetrics();
-    setStatus(`${el.model.selectedOptions[0].textContent} · CPU · ${body.timing_ms.inference.toFixed(0)} ms`);
+    const ms = responses.map((r) => `${shortName(r.model)} ${r.timing_ms.inference.toFixed(0)} ms`).join(" · ");
+    setStatus(`CPU · ${ms}`);
   } catch (err) {
     if (seq === state.seq) setStatus(`Forecast failed: ${err.message}`, true);
   } finally {
@@ -331,61 +397,94 @@ const autoRun = debounce(() => el.auto.checked && runForecast(), 250);
 function renderMetrics() {
   const f = state.forecast;
   el.metrics.replaceChildren();
+  el.metricsHead.replaceChildren();
   el.download.disabled = !f;
   if (!f) return;
+  // Largest model first; the seasonal-naive baseline last.
+  const models = comparing() ? [...state.models].reverse() : [f.model];
+  const results = models.map((m) => (comparing() ? state.results[m] : f));
+  const head = ["Metric", ...models.map((m) => `Timestral-${shortName(m)}`), "Seasonal naive"];
+  for (const text of head) {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = text;
+    el.metricsHead.append(th);
+  }
   const m = f.metrics ?? {};
-  const t = m.timestral ?? {};
-  const b = m.seasonal_naive ?? {};
+  const naive = m.seasonal_naive ?? {};
   const pct = (v) => (v == null ? "–" : `${(v * 100).toFixed(1)}%`);
+  const ms = (v) => (v == null ? "–" : `${v.toFixed(0)} ms`);
+  // [label, key, formatter, how to pick the best: "lower" | target value | null, include baseline?]
   const rows = [
-    ["MAE", t.mae, b.mae, fmt, "lower"],
-    ["RMSE", t.rmse, b.rmse, fmt, "lower"],
-    ["MASE", t.mase, b.mase, fmt, "lower"],
-    ["sMAPE", t.smape, b.smape, pct, "lower"],
-    ["CRPS (quantile loss)", t.crps, null, fmt],
-    ["Scaled CRPS", t.scaled_crps, null, fmt],
-    ["10–90% interval coverage (target 80%)", t.coverage_80, null, pct],
-    ["1–99% interval coverage (target 98%)", t.coverage_98, null, pct],
+    ["MAE", "mae", fmt, "lower", true],
+    ["RMSE", "rmse", fmt, "lower", true],
+    ["MASE", "mase", fmt, "lower", true],
+    ["sMAPE", "smape", pct, "lower", true],
+    ["CRPS (quantile loss)", "crps", fmt, "lower", false],
+    ["Scaled CRPS", "scaled_crps", fmt, "lower", false],
+    ["10–90% interval coverage (target 80%)", "coverage_80", pct, 0.8, false],
+    ["1–99% interval coverage (target 98%)", "coverage_98", pct, 0.98, false],
   ];
+  const addRow = (label, values, format, best) => {
+    const tr = document.createElement("tr");
+    const cells = [label, ...values.map((v) => (v === undefined ? "" : format(v)))].map((text) => {
+      const td = document.createElement("td");
+      td.textContent = text;
+      return td;
+    });
+    const scored = values.map((v, i) => [v, i]).filter(([v]) => v != null && Number.isFinite(v));
+    if (best != null && scored.length > 1) {
+      const score = (v) => (best === "lower" ? v : Math.abs(v - best));
+      const top = Math.min(...scored.map(([v]) => score(v)));
+      for (const [v, i] of scored) if (score(v) - top < 1e-9) cells[i + 1].classList.add("better");
+    }
+    tr.append(...cells);
+    el.metrics.append(tr);
+  };
   if (!m.evaluated_steps) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 3;
+    td.colSpan = head.length;
     td.textContent = "No held-out data after the origin: this is a pure forecast of the future.";
     tr.append(td);
     el.metrics.append(tr);
   } else {
-    for (const [label, tv, bv, f2, better] of rows) {
-      const tr = document.createElement("tr");
-      const cells = [label, f2(tv), bv === null && !better ? "" : f2(bv)].map((text) => {
-        const td = document.createElement("td");
-        td.textContent = text;
-        return td;
-      });
-      if (better && tv != null && bv != null) cells[tv <= bv ? 1 : 2].classList.add("better");
-      tr.append(...cells);
-      el.metrics.append(tr);
+    for (const [label, key, format, best, withBaseline] of rows) {
+      const values = results.map((r) => r.metrics?.timestral?.[key] ?? null);
+      addRow(label, [...values, withBaseline ? (naive[key] ?? null) : undefined], format, best);
     }
   }
+  addRow("Inference time", [...results.map((r) => r.timing_ms.inference), undefined], ms, null);
   el.timing.textContent =
-    `Context ${f.context_length} points · horizon ${f.horizon} · evaluated on ${m.evaluated_steps ?? 0} held-out points · ` +
-    `inference ${f.timing_ms.inference.toFixed(0)} ms` +
-    (f.timing_ms.load ? ` · model load ${(f.timing_ms.load / 1000).toFixed(1)} s` : "");
+    `Context ${f.context_length} points · horizon ${f.horizon} · evaluated on ${m.evaluated_steps ?? 0} held-out points` +
+    (results.some((r) => r.timing_ms.load) ? " · includes first-use model load" : "");
 }
 
 function downloadCsv() {
   const f = state.forecast;
   const s = state.series;
-  const header = ["step", "timestamp", "actual", "median", ...f.quantile_levels.map((q) => `q${q}`), "seasonal_naive"];
+  const others = comparing() ? state.models.filter((m) => m !== f.model) : [];
+  const header = [
+    "step",
+    "timestamp",
+    "actual",
+    `median_${shortName(f.model)}`,
+    ...f.quantile_levels.map((q) => `q${q}_${shortName(f.model)}`),
+    ...others.map((m) => `median_${shortName(m)}`),
+    "seasonal_naive",
+  ];
   const lines = [header.join(",")];
   for (let h = 0; h < f.horizon; h++) {
     const i = f.cutoff + h;
     const cell = (v) => (v == null ? "" : v);
-    lines.push([i, timeLabel(i), cell(s.values[i]), f.median[h], ...f.quantiles[h], cell(f.baseline[h])].join(","));
+    const otherMedians = others.map((m) => state.results[m].median[h]);
+    lines.push(
+      [i, timeLabel(i), cell(s.values[i]), f.median[h], ...f.quantiles[h], ...otherMedians, cell(f.baseline[h])].join(","),
+    );
   }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-  a.download = `${s.id}-origin${f.cutoff}-h${f.horizon}.csv`;
+  a.download = `${s.id}-origin${f.cutoff}-h${f.horizon}-${others.length ? "all-sizes" : shortName(f.model)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -408,6 +507,7 @@ function setCutoff(value) {
     autoRun();
   } else {
     state.forecast = null;
+    state.results = null;
     refreshPlot();
     renderMetrics();
   }
@@ -416,6 +516,7 @@ function setCutoff(value) {
 function useSeries(series) {
   state.series = series;
   state.forecast = null;
+  state.results = null;
   const n = series.values.length;
   const horizon = Math.max(1, Math.min(series.horizon ?? 96, Math.floor(n / 4)));
   el.horizon.value = horizon;
@@ -479,6 +580,8 @@ async function boot() {
   }
 
   const info = await (await fetch("/api/info")).json();
+  state.models = info.models;
+  S.actual = S.cmp + state.models.length;
   for (const m of info.models) el.model.append(new Option(m.replace("mistralai/", ""), m));
   el.model.value = info.default_model;
   setStatus(`Worker ready · device ${info.device} · torch ${info.torch} · ${info.threads} threads`);
@@ -501,13 +604,27 @@ async function boot() {
     });
   }
   el.model.addEventListener("change", () => {
+    // In compare mode every size is already forecast: just change which one gets the bands.
+    const cached = state.results?.[el.model.value];
+    if (cached && el.compare.checked) {
+      state.forecast = cached;
+      makePlot();
+      renderMetrics();
+      return;
+    }
     setStatus(`Switching to ${el.model.value} (first use downloads the weights)…`);
     runForecast();
+  });
+  el.compare.addEventListener("change", () => {
+    if (el.compare.checked) return runForecast();
+    state.results = null;
+    makePlot();
+    renderMetrics();
   });
   el.run.addEventListener("click", runForecast);
   el.showBaseline.addEventListener("change", () => {
     state.plot.setSeries(S.baseline, { show: el.showBaseline.checked });
-    el.baselineKey.hidden = !el.showBaseline.checked;
+    renderLegend();
   });
   el.zoomForecast.addEventListener("click", zoomToForecast);
   el.zoomAll.addEventListener("click", () => state.plot.setScale("x", { min: 0, max: state.plot.data[0].length - 1 }));

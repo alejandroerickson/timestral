@@ -12,23 +12,33 @@ the forecast against them, next to a seasonal-naive baseline.
 Needs [uv](https://docs.astral.sh/uv/) and Node 20+.
 
 ```bash
-uv sync          # Python 3.12 env with timestral + torch
-npm install      # uPlot
-npm start        # http://localhost:5177
+uv sync                  # Python 3.12 env with timestral + torch
+npm install              # uPlot
+npm run download-models  # all four sizes (~1.4 GB) into the Hugging Face cache
+npm start                # http://localhost:5177
 ```
 
-The first start downloads Timestral-209M (837 MB) to the Hugging Face cache. The smaller models download the first
-time you pick them in the UI. `PORT=8080 npm start` changes the port.
+Without `download-models`, the first start downloads Timestral-209M, and the other sizes download the first time
+you select them. `PORT=8080 npm start` changes the port.
+
+**Compare all sizes** runs all four models on the same context. The selected model keeps its interval bands and the
+others draw their medians in their own colors. The metrics table gets one column per model plus the baseline, with
+inference time in the last row. Changing the selected model in this mode re-renders without running inference again.
 
 ## Hardware and model choice
 
 This machine is an M1 Pro with 32 GB. That's plenty for the largest model, so **Timestral-209M** is the default.
-All four sizes can be selected in the UI:
+All four sizes can be selected in the UI. `npm run benchmark` gives these numbers (median of 5 runs,
+96-step horizon, M1 Pro CPU):
 
-| model | weights | inference, 144-pt context → 24 steps | 17k-pt context → 168 steps |
-|---|---|---|---|
-| Timestral-5M | 21 MB | ~13 ms | |
-| Timestral-209M | 837 MB | ~150 ms | ~560 ms |
+| model | weights | peak RSS | 512-pt context, 2 threads | 4096-pt context, 2 threads | 4096-pt, 8 threads |
+|---|---|---|---|---|---|
+| Timestral-5M | 20 MB | 0.25 GB | 10 ms | 20 ms | 20 ms |
+| Timestral-28M | 106 MB | 0.42 GB | 28 ms | 65 ms | 77 ms |
+| Timestral-123M | 468 MB | 1.1 GB | 81 ms | 152 ms | 194 ms |
+| Timestral-209M | 798 MB | 1.8 GB | 133 ms | 233 ms | 264 ms |
+
+Single-series forecasts don't get faster with more threads, so a 2-vCPU machine is enough to serve this.
 
 Inference runs on the **CPU**. Apple's GPU backend (MPS) doesn't work as of timestral 1.0.0: its scaler
 (`timestral/scaler.py`) computes running statistics in float64, which MPS doesn't support. CPU is fast enough that
@@ -43,6 +53,8 @@ python/forecast_worker.py  long-lived Timestral process, JSON lines over stdin/s
 python/metrics.py          MAE, RMSE, MASE, sMAPE, CRPS (quantile loss), interval coverage, seasonal naive
 public/                    browser app (vanilla JS + uPlot)
 scripts/fetch_datasets.py  re-downloads and normalizes data/ (`npm run fetch-data`)
+scripts/download_models.py downloads all four model sizes (`npm run download-models`)
+scripts/benchmark.py       per-model latency and memory (`npm run benchmark`)
 data/                      timestamp,value CSVs + index.json
 ```
 

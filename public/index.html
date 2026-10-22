@@ -44,6 +44,10 @@
           <span>Auto-run</span>
         </label>
         <label class="check">
+          <input id="compare" type="checkbox" />
+          <span>Compare all sizes</span>
+        </label>
+        <label class="check">
           <input id="showBaseline" type="checkbox" checked />
           <span>Seasonal naive</span>
         </label>
@@ -58,11 +62,7 @@
 
       <section class="chart-card">
         <div class="legend" aria-label="Legend">
-          <span><i class="key line actual"></i>Actual</span>
-          <span><i class="key line forecast"></i>Timestral median</span>
-          <span><i class="key rect band80"></i>10–90% interval</span>
-          <span><i class="key rect band98"></i>1–99% interval</span>
-          <span id="baselineKey"><i class="key line baseline"></i>Seasonal naive</span>
+          <span id="legendItems" class="legend-items"></span>
           <span class="spacer"></span>
           <button id="zoomForecast" type="button" class="ghost">Zoom to forecast</button>
           <button id="zoomAll" type="button" class="ghost">Show all</button>
@@ -76,7 +76,7 @@
         <h2>Validation against held-out data</h2>
         <table id="metrics">
           <thead>
-            <tr><th scope="col">Metric</th><th scope="col">Timestral</th><th scope="col">Seasonal naive</th></tr>
+            <tr></tr>
           </thead>
           <tbody></tbody>
         </table>
