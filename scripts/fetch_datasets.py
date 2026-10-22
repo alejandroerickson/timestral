@@ -54,6 +54,7 @@ DATASETS = [
         "value_col": "Temp",
     },
     {
+        # CC BY-ND 4.0 (github.com/zhouhaoyi/ETDataset): fine to use locally, so this extract is gitignored.
         "id": "etth1-ot",
         "name": "ETTh1 transformer oil temperature (hourly, 2016-2018)",
         "freq": "hourly",

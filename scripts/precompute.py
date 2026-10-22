@@ -32,7 +32,6 @@ DATASETS = [
     ("co2-mauna-loa", "CO₂ at Mauna Loa", "Monthly mean CO₂ at Mauna Loa, Hawaii, since 1958.", "ppm", None),
     ("sunspots", "Sunspots", "Monthly sunspot count, 1749 to 1983: an 11-year cycle that never quite repeats.", "", 132),
     ("melbourne-min-temp", "Melbourne lows", "Daily minimum temperature in Melbourne, 1981 to 1990.", "°C", None),
-    ("etth1-ot", "Transformer oil", "Hourly oil temperature of an electricity transformer, 2016 to 2018.", "°C", None),
     ("synthetic-sine-trend", "Sine and trend", "Made up: a daily cycle on a slow rise, with noise.", "", None),
     ("synthetic-multi-seasonal", "Daily and weekly", "Made up: a daily cycle with quieter weekends.", "", None),
     ("synthetic-random-walk", "Random walk", "Made up: a random walk. There is nothing to predict.", "", None),

@@ -55,7 +55,7 @@ public/                    browser app (vanilla JS + uPlot)
 scripts/fetch_datasets.py  re-downloads and normalizes data/ (`npm run fetch-data`)
 scripts/download_models.py downloads all four model sizes (`npm run download-models`)
 scripts/benchmark.py       per-model latency and memory (`npm run benchmark`)
-scripts/precompute.py      forecasts for the static blog demo: 10 series x 40 origins x 4 sizes, as JSON
+scripts/precompute.py      forecasts for the static blog demo: 9 series x 40 origins x 4 sizes, as JSON
 scripts/hero_svg.py        the blog post's opening chart, as SVG in the blog's colour tokens
 data/                      timestamp,value CSVs + index.json
 ```
@@ -70,7 +70,9 @@ data/                      timestamp,value CSVs + index.json
 ## Datasets
 
 Real: airline passengers, Mauna Loa CO2, sunspots, Melbourne daily min temperature, ETTh1 oil temperature
-(sources in `data/index.json`). Synthetic: sine + trend, daily + weekly seasonality, random walk, level shift,
+(sources in `data/index.json`). ETTh1 is under
+[CC BY-ND 4.0](https://github.com/zhouhaoyi/ETDataset), so its extract is not in the repository: `npm run fetch-data`
+downloads it, and the explorer lists it once it is on disk. Synthetic: sine + trend, daily + weekly seasonality, random walk, level shift,
 intermittent demand. You can also upload your own CSV in the UI. It uses the last mostly-numeric column as the value
 and the first column as the timestamp when that column isn't numeric.
 

@@ -3,3 +3,5 @@ node_modules/
 __pycache__/
 *.pyc
 .DS_Store
+# CC BY-ND 4.0 (ETDataset): fetched by scripts/fetch_datasets.py, never committed
+data/etth1-ot.csv

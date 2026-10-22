@@ -1,5 +1,5 @@
 // Dataset catalog: real series from data/ (see scripts/fetch_datasets.py) plus seeded synthetic ones.
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const DATA_DIR = path.join(import.meta.dirname, "data");
@@ -84,7 +84,10 @@ function stripGenerator({ generate, ...meta }) {
 }
 
 export async function listDatasets() {
-  const real = JSON.parse(await readFile(path.join(DATA_DIR, "index.json"), "utf8"));
+  const listed = JSON.parse(await readFile(path.join(DATA_DIR, "index.json"), "utf8"));
+  // Some real series are fetched locally but not committed (licence); list only the ones on disk.
+  const present = await Promise.all(listed.map((d) => access(path.join(DATA_DIR, `${d.id}.csv`)).then(() => true, () => false)));
+  const real = listed.filter((_, i) => present[i]);
   return [...real, ...SYNTHETIC.map((s) => ({ ...stripGenerator(s), length: s.generate(mulberry32(1)).length }))];
 }
 
