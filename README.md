@@ -55,6 +55,8 @@ public/                    browser app (vanilla JS + uPlot)
 scripts/fetch_datasets.py  re-downloads and normalizes data/ (`npm run fetch-data`)
 scripts/download_models.py downloads all four model sizes (`npm run download-models`)
 scripts/benchmark.py       per-model latency and memory (`npm run benchmark`)
+scripts/precompute.py      forecasts for the static blog demo: 10 series x 40 origins x 4 sizes, as JSON
+scripts/hero_svg.py        the blog post's opening chart, as SVG in the blog's colour tokens
 data/                      timestamp,value CSVs + index.json
 ```
 
