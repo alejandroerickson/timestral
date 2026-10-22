@@ -1,0 +1,16 @@
+[project]
+name = "timestral-poc"
+version = "0.1.0"
+description = "POC: zero-shot time series forecasting with Mistral's Timestral on Apple Silicon"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "timestral",
+    "numpy>=1.24",
+    "torch>=2.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+timestral = { git = "https://github.com/mistralai/timestral.git" }

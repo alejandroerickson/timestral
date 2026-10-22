@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Timestral explorer</title>
+    <link rel="stylesheet" href="/vendor/uPlot.min.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="viz-root">
+      <header>
+        <h1>Timestral explorer</h1>
+        <p id="status" class="muted">Connecting to forecast worker…</p>
+      </header>
+
+      <section class="controls" aria-label="Forecast settings">
+        <label>
+          <span>Dataset</span>
+          <select id="dataset"></select>
+        </label>
+        <label class="file">
+          <span>Or upload CSV</span>
+          <input id="upload" type="file" accept=".csv,text/csv,text/plain" />
+        </label>
+        <label>
+          <span>Model</span>
+          <select id="model"></select>
+        </label>
+        <label>
+          <span>Horizon</span>
+          <input id="horizon" type="number" min="1" max="4096" step="1" />
+        </label>
+        <label>
+          <span>Max context</span>
+          <input id="maxContext" type="number" min="32" max="32768" step="32" value="32768" />
+        </label>
+        <label>
+          <span>Season period</span>
+          <input id="period" type="number" min="1" step="1" title="Used by the seasonal-naive baseline and MASE" />
+        </label>
+        <label class="check">
+          <input id="auto" type="checkbox" checked />
+          <span>Auto-run</span>
+        </label>
+        <label class="check">
+          <input id="showBaseline" type="checkbox" checked />
+          <span>Seasonal naive</span>
+        </label>
+        <button id="run" type="button">Forecast</button>
+      </section>
+
+      <section class="cutoff" aria-label="Forecast origin">
+        <label for="cutoff">Forecast origin <span class="muted">(click the chart to move it)</span></label>
+        <input id="cutoff" type="range" min="32" step="1" />
+        <output id="cutoffLabel"></output>
+      </section>
+
+      <section class="chart-card">
+        <div class="legend" aria-label="Legend">
+          <span><i class="key line actual"></i>Actual</span>
+          <span><i class="key line forecast"></i>Timestral median</span>
+          <span><i class="key rect band80"></i>10–90% interval</span>
+          <span><i class="key rect band98"></i>1–99% interval</span>
+          <span id="baselineKey"><i class="key line baseline"></i>Seasonal naive</span>
+          <span class="spacer"></span>
+          <button id="zoomForecast" type="button" class="ghost">Zoom to forecast</button>
+          <button id="zoomAll" type="button" class="ghost">Show all</button>
+        </div>
+        <div id="chart"></div>
+        <div id="tooltip" role="status" hidden></div>
+        <p class="muted hint">Drag to zoom · double-click to reset · shaded area left of the context window is not seen by the model · area right of the origin is held out for validation</p>
+      </section>
+
+      <section class="results">
+        <h2>Validation against held-out data</h2>
+        <table id="metrics">
+          <thead>
+            <tr><th scope="col">Metric</th><th scope="col">Timestral</th><th scope="col">Seasonal naive</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p id="timing" class="muted"></p>
+        <button id="download" type="button" class="ghost" disabled>Download forecast CSV</button>
+      </section>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

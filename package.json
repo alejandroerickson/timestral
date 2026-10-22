@@ -1,0 +1,17 @@
+{
+  "name": "timestral-poc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Browser explorer for Timestral zero-shot time series forecasts",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "fetch-data": "uv run python scripts/fetch_datasets.py"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "uplot": "^1.6.32"
+  }
+}

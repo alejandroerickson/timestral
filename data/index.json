@@ -1,0 +1,47 @@
+[
+  {
+    "id": "air-passengers",
+    "name": "Airline passengers (monthly, 1949-1960)",
+    "freq": "monthly",
+    "period": 12,
+    "horizon": 24,
+    "source": "https://raw.githubusercontent.com/jbrownlee/Datasets/master/airline-passengers.csv",
+    "length": 144
+  },
+  {
+    "id": "co2-mauna-loa",
+    "name": "Mauna Loa CO2 ppm (monthly, 1958-)",
+    "freq": "monthly",
+    "period": 12,
+    "horizon": 60,
+    "source": "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_mlo.csv",
+    "length": 823
+  },
+  {
+    "id": "sunspots",
+    "name": "Sunspot number (monthly, 1749-1983)",
+    "freq": "monthly",
+    "period": 132,
+    "horizon": 264,
+    "source": "https://raw.githubusercontent.com/jbrownlee/Datasets/master/monthly-sunspots.csv",
+    "length": 2820
+  },
+  {
+    "id": "melbourne-min-temp",
+    "name": "Melbourne daily min temperature (1981-1990)",
+    "freq": "daily",
+    "period": 365,
+    "horizon": 365,
+    "source": "https://raw.githubusercontent.com/jbrownlee/Datasets/master/daily-min-temperatures.csv",
+    "length": 3650
+  },
+  {
+    "id": "etth1-ot",
+    "name": "ETTh1 transformer oil temperature (hourly, 2016-2018)",
+    "freq": "hourly",
+    "period": 24,
+    "horizon": 168,
+    "source": "https://raw.githubusercontent.com/zhouhaoyi/ETDataset/main/ETT-small/ETTh1.csv",
+    "length": 17420
+  }
+]
